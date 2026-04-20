@@ -343,6 +343,115 @@ plotx<-ggplot(data.use, aes(x = Ecotype, y = percentage)) +
   labs(x="", y="% (of TME cells)") 
 ggsave('cell.status.in.ecotype.compare.pdf',plotx,width=8,height=12,limitsize = FALSE)
 
+
+plotx2<-ggplot(data.use, aes(x = diagnosis, y = percentage)) +
+  geom_boxplot(alpha = 0.8, show.legend = T,width = 0.75, aes(fill=diagnosis), outlier.shape=NA) + 
+  geom_jitter(position=position_jitter(width=0.1, height=0), size=0.5) +
+  stat_compare_means(method = "kruskal.test") + # Add p-values
+  scale_fill_manual(values=c('MGUS'='#1c75bc','SMM'='#fbb040','NDMM'='#d01c8b', 'RRMM'='#8856a7'))+
+  facet_grid(rows = vars(cell.status),cols = vars(Ecotype),scales='free') +
+  scale_y_continuous(expand = expansion(mult = c(0.15)))+
+  theme(strip.text.x = element_text(size=10, color="black", face="bold"),
+        axis.text.x = element_text(angle = 90,size = 10,vjust=0.2,hjust=0.95,colour = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, size=1),
+        text = element_text(size=12)) +
+  labs(x="", y="% (of TME cells)") 
+ggsave('cell.status.in.ecotype.compare2.pdf',plotx2,width=14,height=12,limitsize = FALSE)
+
+
+mat_df <- data %>%
+  filter(diagnosis!='nBM') %>%
+  dplyr::select(NewID, Ecotype, diagnosis, cell.status, percentage) %>%
+  distinct() %>%
+  pivot_wider(
+    names_from = cell.status,
+    values_from = percentage,
+    values_fill = 0
+  )%>%
+  ungroup()
+
+meta <- mat_df %>%
+  dplyr::select(NewID, Ecotype, diagnosis)
+
+mat <- mat_df %>%
+  dplyr::select(-NewID, -Ecotype, -diagnosis) %>%
+  as.data.frame()
+
+rownames(mat) <- meta$NewID
+
+cor_mat <- cor(t(mat), method = "spearman", use = "pairwise.complete.obs")
+
+pair_idx <- which(upper.tri(cor_mat), arr.ind = TRUE)
+
+pair_df <- tibble(
+  sample1 = rownames(cor_mat)[pair_idx[, 1]],
+  sample2 = colnames(cor_mat)[pair_idx[, 2]],
+  corr = cor_mat[pair_idx]
+) %>%
+  left_join(meta %>% rename(sample1 = NewID,
+                            ecotype1 = Ecotype,
+                            diagnosis1 = diagnosis),
+            by = "sample1") %>%
+  left_join(meta %>% rename(sample2 = NewID,
+                            ecotype2 = Ecotype,
+                            diagnosis2 = diagnosis),
+            by = "sample2") %>%
+  mutate(
+    same_ecotype   = ecotype1 == ecotype2,
+    same_diagnosis = diagnosis1 == diagnosis2,
+    group = case_when(
+      same_ecotype & same_diagnosis   ~ "Same Eco + Same Dx",
+      same_ecotype & !same_diagnosis  ~ "Same Eco + Diff Dx",
+      !same_ecotype & same_diagnosis  ~ "Diff Eco + Same Dx",
+      TRUE                            ~ "Diff Eco + Diff Dx"
+    )
+  )
+
+
+pair_df$group <- factor(
+  pair_df$group,
+  levels = c(
+    "Same Eco + Same Dx",
+    "Same Eco + Diff Dx",
+    "Diff Eco + Same Dx",
+    "Diff Eco + Diff Dx"
+  )
+)
+
+my_comparisons <- combn(levels(pair_df$group), 2, simplify = FALSE)
+group_colors <- c(
+  "Same Eco + Same Dx" = "#2F5D8A",
+  "Same Eco + Diff Dx" = "#8FB3D9",
+  "Diff Eco + Same Dx" = "#D8A05B",
+  "Diff Eco + Diff Dx" = "#BFE3D0"
+)
+
+p1 <- ggplot(pair_df, aes(x = group, y = corr, fill = group)) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  #geom_jitter(width = 0.15, size = 0.1, alpha = 0.15) +
+  geom_boxplot(width = 0.12, outlier.shape = NA) +
+  stat_compare_means(
+    comparisons = my_comparisons,
+    method = "wilcox.test",
+    label = "p.format"
+  ) +
+  scale_fill_manual(values = group_colors) +
+  theme_bw() +
+  labs(
+    x = NULL,
+    y = "Spearman correlation",
+    title = "Pairwise sample similarity"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  )
+
+p1
+
+ggsave('ecotype_diagnosis.patient_corr.compare.pdf',p1,width=8,height=8,limitsize = FALSE)
+
 ###################### Figure S6A choose k ######################
 
 meta <- readRDS("MM.TME.235samples.TME.meta.data.rds") %>%
