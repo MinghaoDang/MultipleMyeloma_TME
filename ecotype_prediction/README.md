@@ -13,15 +13,6 @@ The primary classifier uses a sample-by-cell-state frequency matrix. Rows are sa
 
 An optional DEG-based expression classifier is also included for datasets where matched cell-state frequencies are unavailable. The cell-frequency model is the recommended primary approach for single-cell datasets.
 
-## Validation performance
-
-In a stratified two-thirds training and one-third validation split of the reference cohort:
-
-| Classifier | Validation accuracy | Balanced accuracy | Macro F1 |
-|---|---:|---:|---:|
-| Cell-frequency glmnet | 0.892 | 0.928 | 0.886 |
-| DEG-based expression glmnet | 0.649 | 0.759 | 0.596 |
-
 ## Folder contents
 
 - `scripts/predict_reference_ecotype.R`: assign ecotypes to a new sample-by-cell-state frequency matrix.
